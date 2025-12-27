@@ -54,20 +54,21 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<ResponseObject> login(@Valid @RequestBody AuthRequest request) {
         try {
-            logger.debug("Intento de login para el usuario: {}", request.getEmail());
+            String email = request.getEmail() == null ? null : request.getEmail().trim();
+            logger.debug("Intento de login para el usuario: {}", email);
             
             Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
+                new UsernamePasswordAuthenticationToken(email, request.getPassword())
             );
 
             UserDetails userDetails = (UserDetails) authentication.getPrincipal();
             String jwt = jwtUtils.generateJwtToken(userDetails);
 
             // Fetch full user details
-            User user = (User) userDetailsService.loadUserByUsername(request.getEmail());
+            User user = (User) userDetailsService.loadUserByUsername(email);
             UserDetailsDto userInfo = new UserDetailsDto(user);
 
-            logger.debug("Token generado exitosamente para el usuario: {}", request.getEmail());
+            logger.debug("Token generado exitosamente para el usuario: {}", email);
 
             Map<String, Object> data = new HashMap<>();
             data.put("token", jwt);

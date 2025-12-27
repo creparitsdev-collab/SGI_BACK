@@ -85,7 +85,7 @@ public class UserService {
     // Method to send welcome email with temporary password
     private void sendWelcomeEmail(String email, String temporaryPassword, String name) {
         try {
-            String subject = "¡Bienvenido a LabMetricas! Tus credenciales de acceso";
+            String subject = "¡Bienvenido a Creparis! Tus credenciales de acceso";
             String htmlContent = buildTemporaryPasswordEmailBody(name, email, temporaryPassword);
 
             boolean onboardingEmailSent = productionEmailService.sendCustomEmail(email, subject, htmlContent);
@@ -119,7 +119,7 @@ public class UserService {
             "<body style='margin:0; padding:0; background:#f4f6fb; font-family: Arial, sans-serif;'>" +
             "  <div style='max-width: 640px; margin: 0 auto; padding: 28px 16px;'>" +
             "    <div style='background: linear-gradient(135deg, #0ea5e9 0%%, #22c55e 100%%); border-radius: 14px 14px 0 0; padding: 22px 20px; color: #ffffff;'>" +
-            "      <div style='font-size: 14px; opacity: 0.95; letter-spacing: 0.6px;'>LabMetricas</div>" +
+            "      <div style='font-size: 14px; opacity: 0.95; letter-spacing: 0.6px;'>Creparis</div>" +
             "      <div style='font-size: 22px; font-weight: 700; margin-top: 6px;'>¡Bienvenido, %s!</div>" +
             "      <div style='margin-top: 8px; font-size: 14px; opacity: 0.95;'>Tu cuenta ha sido creada correctamente.</div>" +
             "    </div>" +
@@ -162,26 +162,33 @@ public class UserService {
     @Transactional
     public ResponseEntity<ResponseObject> createUser(UserDto userDto) {
         try {
+            String normalizedEmail = userDto.getEmail() == null ? null : userDto.getEmail().trim().toLowerCase();
+            if (normalizedEmail == null || normalizedEmail.isBlank()) {
+                return ResponseEntity.badRequest().body(
+                    new ResponseObject("Email is required", null, TypeResponse.ERROR)
+                );
+            }
+
             // Check if email already exists
-            if (userRepository.existsByEmail(userDto.getEmail())) {
+            if (userRepository.existsByEmailNormalized(normalizedEmail)) {
                 return ResponseEntity.badRequest().body(
                     new ResponseObject("Email already exists", null, TypeResponse.ERROR)
                 );
             }
+
             User user = new User();
             user.setName(userDto.getName());
-            user.setEmail(userDto.getEmail());
+            user.setEmail(normalizedEmail);
             user.setPosition(userDto.getPosition());
             user.setPhone(userDto.getPhone());
             user.setStatus(userDto.getStatus() != null ? userDto.getStatus() : true);
             user.setRole(roleRepository.findById(userDto.getRoleId())
                 .orElseThrow(() -> new RuntimeException("Role not found")));
-            String rawPassword = userDto.getPassword() != null && !userDto.getPassword().isEmpty() 
-                ? userDto.getPassword() 
-                : generateTemporaryPassword();
+            String rawPassword = generateTemporaryPassword();
             user.setPassword(passwordEncoder.encode(rawPassword));
             user.setCreatedAt(LocalDateTime.now());
             user.setUpdatedAt(LocalDateTime.now());
+
             User savedUser = userRepository.save(user);
             UserDto responseDto = convertToDto(savedUser);
             responseDto.setTemporaryPassword(rawPassword);
@@ -216,12 +223,19 @@ public class UserService {
             existingUser.setPosition(userDto.getPosition());
             existingUser.setPhone(userDto.getPhone());
 
-            Optional<User> user = userRepository.findByEmail(userDto.getEmail());
+            String normalizedEmail = userDto.getEmail() == null ? null : userDto.getEmail().trim().toLowerCase();
+            if (normalizedEmail == null || normalizedEmail.isBlank()) {
+                return ResponseEntity.badRequest().body(
+                    new ResponseObject("Email is required", null, TypeResponse.ERROR)
+                );
+            }
+
+            Optional<User> user = userRepository.findByEmailNormalized(normalizedEmail);
             if (user.isPresent() && !user.get().getId().equals(existingUser.getId())) {
                 return ResponseEntity.status(HttpStatus.CONFLICT).body(
-                        new ResponseObject("Email already exists", TypeResponse.ERROR));
+                        new ResponseObject("Email already exists", null, TypeResponse.ERROR));
             } else {
-                existingUser.setEmail(userDto.getEmail());
+                existingUser.setEmail(normalizedEmail);
             }
 
             // Update role if changed

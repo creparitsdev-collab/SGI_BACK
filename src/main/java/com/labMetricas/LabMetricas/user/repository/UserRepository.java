@@ -17,9 +17,18 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByEmail(String email);
     boolean existsByEmail(String email);
 
+    @Query("SELECT u FROM User u WHERE LOWER(TRIM(u.email)) = LOWER(TRIM(:email))")
+    Optional<User> findByEmailNormalized(@Param("email") String email);
+
+    @Query("SELECT CASE WHEN COUNT(u) > 0 THEN true ELSE false END FROM User u WHERE LOWER(TRIM(u.email)) = LOWER(TRIM(:email))")
+    boolean existsByEmailNormalized(@Param("email") String email);
+
     // Additional methods from previous repository
     @Query("SELECT u FROM User u LEFT JOIN FETCH u.role WHERE u.email = :email")
     Optional<User> findByEmailWithRole(@Param("email") String email);
+
+    @Query("SELECT u FROM User u LEFT JOIN FETCH u.role WHERE LOWER(TRIM(u.email)) = LOWER(TRIM(:email))")
+    Optional<User> findByEmailWithRoleNormalized(@Param("email") String email);
 
     @Query("SELECT u FROM User u LEFT JOIN FETCH u.role")
     List<User> findAllWithRoles();

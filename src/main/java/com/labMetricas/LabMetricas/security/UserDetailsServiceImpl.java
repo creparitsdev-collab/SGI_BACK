@@ -17,7 +17,12 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     @Override
     @Transactional
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        return userRepository.findByEmail(email)
-                .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado con el email: " + email));
+        String trimmed = email == null ? null : email.trim();
+        if (trimmed == null || trimmed.isBlank()) {
+            throw new UsernameNotFoundException("Usuario no encontrado con el email: " + email);
+        }
+
+        return userRepository.findByEmailWithRoleNormalized(trimmed)
+            .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado con el email: " + trimmed));
     }
-} 
+}
