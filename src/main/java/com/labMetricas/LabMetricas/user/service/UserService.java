@@ -85,24 +85,14 @@ public class UserService {
     // Method to send welcome email with temporary password
     private void sendWelcomeEmail(String email, String temporaryPassword, String name) {
         try {
-            // Use ProductionEmailService for welcome email
-            boolean emailSent = productionEmailService.sendWelcomeEmail(email, name);
-            
-            if (emailSent) {
-                logger.info("Welcome email sent to: {}", email);
-            } else {
-                logger.error("Failed to send welcome email to: {}", email);
-            }
-
-            // Send additional email with temporary password
-            String subject = "Tus Credenciales de Acceso - LabMetricas";
+            String subject = "¡Bienvenido a LabMetricas! Tus credenciales de acceso";
             String htmlContent = buildTemporaryPasswordEmailBody(name, email, temporaryPassword);
 
-            boolean passwordEmailSent = productionEmailService.sendCustomEmail(email, subject, htmlContent);
-            if (passwordEmailSent) {
-                logger.info("Temporary password email sent to: {}", email);
+            boolean onboardingEmailSent = productionEmailService.sendCustomEmail(email, subject, htmlContent);
+            if (onboardingEmailSent) {
+                logger.info("Welcome email with credentials sent to: {}", email);
             } else {
-                logger.error("Failed to send temporary password email to: {}", email);
+                logger.error("Failed to send welcome email with credentials to: {}", email);
             }
         } catch (Exception e) {
             logger.error("Failed to send welcome email to: {}", email, e);
@@ -122,23 +112,49 @@ public class UserService {
     private String buildTemporaryPasswordEmailBody(String name, String email, String temporaryPassword) {
         return String.format(
             "<html>" +
-            "<body style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f4f4f4;'>" +
-            "    <div style='background-color: #ffffff; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 30px;'>" +
-            "        <h1 style='color: #2c3e50; text-align: center;'>¡Bienvenido a LabMetricas!</h1>" +
-            "        <p style='color: #34495e; line-height: 1.6;'>Estimado/a <strong>%s</strong>,</p>" +
-            "        <div style='background-color: #ecf0f1; border-left: 5px solid #3498db; padding: 15px; margin: 20px 0;'>" +
-            "            <h2 style='color: #2980b9; margin-top: 0;'>Tus Claves de Acceso</h2>" +
-            "            <p style='margin: 10px 0;'><strong>Correo Electrónico:</strong> <span style='color: #2c3e50;'>%s</span></p>" +
-            "            <p style='margin: 10px 0;'><strong>Contraseña Temporal:</strong> <span style='color: #e74c3c; font-family: monospace;'>%s</span></p>" +
-            "        </div>" +
-            "        <p style='color: #34495e; line-height: 1.6;'>Por razones de seguridad, te recomendamos cambiar tu contraseña después de tu primer inicio de sesión.</p>" +
-            "        <div style='text-align: center; margin-top: 30px;'>" +
-            "            <a href='%s' style='background-color: #3498db; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;'>Iniciar Sesión</a>" +
-            "        </div>" +
-            "        <p style='color: #7f8c8d; font-size: 0.9em; text-align: center; margin-top: 20px;'>Si no solicitaste esta cuenta, por favor contacta con soporte.</p>" +
+            "<head>" +
+            "  <meta charset='UTF-8'/>" +
+            "  <meta name='viewport' content='width=device-width, initial-scale=1.0'/>" +
+            "</head>" +
+            "<body style='margin:0; padding:0; background:#f4f6fb; font-family: Arial, sans-serif;'>" +
+            "  <div style='max-width: 640px; margin: 0 auto; padding: 28px 16px;'>" +
+            "    <div style='background: linear-gradient(135deg, #0ea5e9 0%%, #22c55e 100%%); border-radius: 14px 14px 0 0; padding: 22px 20px; color: #ffffff;'>" +
+            "      <div style='font-size: 14px; opacity: 0.95; letter-spacing: 0.6px;'>LabMetricas</div>" +
+            "      <div style='font-size: 22px; font-weight: 700; margin-top: 6px;'>¡Bienvenido, %s!</div>" +
+            "      <div style='margin-top: 8px; font-size: 14px; opacity: 0.95;'>Tu cuenta ha sido creada correctamente.</div>" +
             "    </div>" +
+            "    <div style='background:#ffffff; border-radius: 0 0 14px 14px; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08); padding: 22px 20px;'>" +
+            "      <p style='margin: 0; color:#0f172a; font-size: 14px; line-height: 1.7;'>" +
+            "        Nos complace darte la bienvenida a <strong>LabMetricas</strong>, tu plataforma integral para la gestión de métricas y mantenimiento." +
+            "      </p>" +
+            "      <div style='margin-top: 16px; padding: 14px 14px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0;'>" +
+            "        <div style='font-size: 13px; color:#334155; font-weight: 700; margin-bottom: 10px;'>Tus credenciales</div>" +
+            "        <div style='font-size: 13px; color:#0f172a; line-height: 1.8;'>" +
+            "          <div><span style='color:#64748b;'>Correo:</span> <strong>%s</strong></div>" +
+            "          <div><span style='color:#64748b;'>Contraseña temporal:</span> <span style='display:inline-block; background:#0f172a; color:#ffffff; padding: 6px 10px; border-radius: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, " +
+            "\"Liberation Mono\", \"Courier New\", monospace; letter-spacing: 0.6px;'>%s</span></div>" +
+            "        </div>" +
+            "        <div style='margin-top: 10px; font-size: 12px; color:#64748b; line-height: 1.6;'>Por seguridad, cambia tu contraseña al iniciar sesión por primera vez.</div>" +
+            "      </div>" +
+            "      <div style='margin-top: 16px; padding: 14px 14px; border-radius: 12px; background: #ecfeff; border: 1px solid #a5f3fc;'>" +
+            "        <div style='font-size: 13px; color:#0f172a; font-weight: 700; margin-bottom: 8px;'>Con tu cuenta podrás:</div>" +
+            "        <ul style='margin: 0; padding-left: 18px; color:#0f172a; font-size: 13px; line-height: 1.8;'>" +
+            "          <li>Gestionar equipos y mantenimientos</li>" +
+            "          <li>Monitorear métricas en tiempo real</li>" +
+            "          <li>Recibir notificaciones importantes</li>" +
+            "          <li>Acceder a reportes detallados</li>" +
+            "        </ul>" +
+            "      </div>" +
+            "      <div style='text-align:center; margin-top: 18px;'>" +
+            "        <a href='%s' style='display:inline-block; background:#0ea5e9; color:#ffffff; padding: 12px 18px; text-decoration:none; border-radius: 12px; font-weight: 700; font-size: 14px;'>Iniciar sesión</a>" +
+            "      </div>" +
+            "      <p style='margin: 18px 0 0; color:#64748b; font-size: 12px; line-height: 1.6; text-align:center;'>" +
+            "        Si no solicitaste esta cuenta, por favor contacta con soporte." +
+            "      </p>" +
+            "    </div>" +
+            "  </div>" +
             "</body>" +
-            "</html>", 
+            "</html>",
             name, email, temporaryPassword, frontendUrl
         );
     }
