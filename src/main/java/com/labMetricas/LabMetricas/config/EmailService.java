@@ -10,7 +10,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class EmailService {
@@ -26,9 +28,18 @@ public class EmailService {
     private String apiKey;
 
     // Lista de dominios verificados
-    private final List<String> verifiedDomains = Arrays.asList(
-        "labmetricas.com.mx"   // Tu dominio verificado
-    );
+    private final List<String> verifiedDomains;
+
+    public EmailService(@Value("${resend.verified.domains:}") String verifiedDomainsCsv) {
+        if (verifiedDomainsCsv == null || verifiedDomainsCsv.trim().isEmpty()) {
+            this.verifiedDomains = Collections.emptyList();
+        } else {
+            this.verifiedDomains = Arrays.stream(verifiedDomainsCsv.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
+        }
+    }
 
     public boolean sendEmail(String to, String subject, String htmlContent) {
         return sendEmail(defaultSender, to, subject, htmlContent);
@@ -77,6 +88,16 @@ public class EmailService {
 
     private boolean isFromVerifiedDomain(String from) {
         if (from == null || from.isEmpty()) return false;
+
+        if (verifiedDomains.isEmpty()) {
+            String defaultDomain = (defaultSender != null && defaultSender.contains("@"))
+                ? defaultSender.split("@", 2)[1]
+                : null;
+            if (defaultDomain == null || defaultDomain.isEmpty()) return false;
+
+            String fromDomain = from.contains("@") ? from.split("@", 2)[1] : from;
+            return defaultDomain.equalsIgnoreCase(fromDomain);
+        }
         
         String domain = from.contains("@") ? from.split("@")[1] : from;
         return verifiedDomains.stream().anyMatch(verified -> domain.equals(verified));
