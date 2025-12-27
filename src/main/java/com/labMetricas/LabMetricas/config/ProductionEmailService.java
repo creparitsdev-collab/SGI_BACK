@@ -16,10 +16,10 @@ public class ProductionEmailService {
     @Autowired
     private Resend resend;
 
-    @Value("${resend.default.sender}")
+    @Value("${resend.default.sender:${RESEND_DEFAULT_SENDER:${RESEND_DEFAULT_SENDE:}}}")
     private String defaultSender;
 
-    @Value("${resend.api.key}")
+    @Value("${resend.api.key:${RESEND_API_KEY:}}")
     private String apiKey;
 
     /**

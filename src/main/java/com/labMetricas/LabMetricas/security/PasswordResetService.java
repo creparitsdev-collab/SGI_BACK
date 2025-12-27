@@ -134,13 +134,16 @@ public class PasswordResetService {
     public void sendPasswordResetConfirmationEmail(String token) {
         try {
             // Find the user associated with this token
-            Optional<PasswordResetToken> resetTokenOptional = 
-                passwordResetTokenRepository.findByTokenAndUsedFalseAndExpiryDateAfter(
-                    token, LocalDateTime.now()
-                );
+            Optional<PasswordResetToken> resetTokenOptional = passwordResetTokenRepository.findByToken(token);
 
             if (resetTokenOptional.isPresent()) {
-                User user = resetTokenOptional.get().getUser();
+                PasswordResetToken resetToken = resetTokenOptional.get();
+                if (resetToken.getExpiryDate() == null || resetToken.getExpiryDate().isBefore(LocalDateTime.now())) {
+                    logger.warn("Reset token expired; skipping confirmation email for token: {}", token);
+                    return;
+                }
+
+                User user = resetToken.getUser();
                 
                 // Send confirmation email
                 boolean emailSent = emailService.sendEmail(

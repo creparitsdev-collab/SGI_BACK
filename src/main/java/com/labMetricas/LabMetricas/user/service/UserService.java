@@ -22,6 +22,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -31,6 +32,10 @@ import java.util.stream.Collectors;
 @Service
 public class UserService {
     private static final Logger logger = LoggerFactory.getLogger(UserService.class);
+
+    private static final String TEMP_PASSWORD_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
+    private static final int TEMP_PASSWORD_LENGTH = 12;
+    private static final SecureRandom secureRandom = new SecureRandom();
 
     @Autowired
     private UserRepository userRepository;
@@ -85,19 +90,32 @@ public class UserService {
             
             if (emailSent) {
                 logger.info("Welcome email sent to: {}", email);
-                
-                // Send additional email with temporary password
-                String subject = "Tus Credenciales de Acceso - LabMetricas";
-                String htmlContent = buildTemporaryPasswordEmailBody(name, email, temporaryPassword);
-                
-                productionEmailService.sendCustomEmail(email, subject, htmlContent);
-                logger.info("Temporary password email sent to: {}", email);
             } else {
                 logger.error("Failed to send welcome email to: {}", email);
+            }
+
+            // Send additional email with temporary password
+            String subject = "Tus Credenciales de Acceso - LabMetricas";
+            String htmlContent = buildTemporaryPasswordEmailBody(name, email, temporaryPassword);
+
+            boolean passwordEmailSent = productionEmailService.sendCustomEmail(email, subject, htmlContent);
+            if (passwordEmailSent) {
+                logger.info("Temporary password email sent to: {}", email);
+            } else {
+                logger.error("Failed to send temporary password email to: {}", email);
             }
         } catch (Exception e) {
             logger.error("Failed to send welcome email to: {}", email, e);
         }
+    }
+
+    private String generateTemporaryPassword() {
+        StringBuilder sb = new StringBuilder(TEMP_PASSWORD_LENGTH);
+        for (int i = 0; i < TEMP_PASSWORD_LENGTH; i++) {
+            int idx = secureRandom.nextInt(TEMP_PASSWORD_CHARS.length());
+            sb.append(TEMP_PASSWORD_CHARS.charAt(idx));
+        }
+        return sb.toString();
     }
 
     // Helper method to build a stylish welcome email body
@@ -139,12 +157,12 @@ public class UserService {
             user.setEmail(userDto.getEmail());
             user.setPosition(userDto.getPosition());
             user.setPhone(userDto.getPhone());
-            user.setStatus(userDto.getStatus());       
+            user.setStatus(userDto.getStatus() != null ? userDto.getStatus() : true);
             user.setRole(roleRepository.findById(userDto.getRoleId())
                 .orElseThrow(() -> new RuntimeException("Role not found")));
             String rawPassword = userDto.getPassword() != null && !userDto.getPassword().isEmpty() 
                 ? userDto.getPassword() 
-                : "Admin2024#Secure";
+                : generateTemporaryPassword();
             user.setPassword(passwordEncoder.encode(rawPassword));
             user.setCreatedAt(LocalDateTime.now());
             user.setUpdatedAt(LocalDateTime.now());
