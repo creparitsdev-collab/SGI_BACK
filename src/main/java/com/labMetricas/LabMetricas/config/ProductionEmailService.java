@@ -16,10 +16,10 @@ public class ProductionEmailService {
     @Autowired
     private Resend resend;
 
-    @Value("${resend.default.sender:${RESEND_DEFAULT_SENDER:${RESEND_DEFAULT_SENDE:}}}")
+    @Value("${RESEND_DEFAULT_SENDER:${RESEND_DEFAULT_SENDE:${resend.default.sender:}}}")
     private String defaultSender;
 
-    @Value("${resend.api.key:${RESEND_API_KEY:}}")
+    @Value("${RESEND_API_KEY:${resend.api.key:}}")
     private String apiKey;
 
     /**
@@ -68,6 +68,13 @@ public class ProductionEmailService {
     private boolean sendEmail(String to, String subject, String htmlContent) {
         try {
             logger.info("Sending production email to: {}", to);
+
+            if (defaultSender == null || defaultSender.isBlank()) {
+                logger.error("RESEND_DEFAULT_SENDER is not configured (defaultSender is blank). Email will not be sent.");
+                return false;
+            }
+
+            logger.info("Using sender: {}", defaultSender);
             
             SendEmailRequest sendEmailRequest = SendEmailRequest.builder()
                 .from(defaultSender)

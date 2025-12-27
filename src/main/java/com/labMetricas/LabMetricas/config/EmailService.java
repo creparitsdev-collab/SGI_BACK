@@ -21,10 +21,10 @@ public class EmailService {
     @Autowired
     private Resend resend;
 
-    @Value("${resend.default.sender:${RESEND_DEFAULT_SENDER:${RESEND_DEFAULT_SENDE:}}}")
+    @Value("${RESEND_DEFAULT_SENDER:${RESEND_DEFAULT_SENDE:${resend.default.sender:}}}")
     private String defaultSender;
 
-    @Value("${resend.api.key:${RESEND_API_KEY:}}")
+    @Value("${RESEND_API_KEY:${resend.api.key:}}")
     private String apiKey;
 
     // Lista de dominios verificados
@@ -50,6 +50,11 @@ public class EmailService {
             logger.info("Attempting to send email to: {}", to);
             logger.debug("Email details - From: {}, Subject: {}, API Key configured: {}", 
                 from, subject, apiKey != null && !apiKey.isEmpty());
+
+            if (defaultSender == null || defaultSender.isBlank()) {
+                logger.error("RESEND_DEFAULT_SENDER is not configured (defaultSender is blank). Email will not be sent.");
+                return false;
+            }
 
             // Validar que el remitente sea de un dominio verificado
             if (!isFromVerifiedDomain(from)) {
