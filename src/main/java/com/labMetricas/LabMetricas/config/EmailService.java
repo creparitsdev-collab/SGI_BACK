@@ -30,7 +30,7 @@ public class EmailService {
     // Lista de dominios verificados
     private final List<String> verifiedDomains;
 
-    public EmailService(@Value("${resend.verified.domains:}") String verifiedDomainsCsv) {
+    public EmailService(@Value("${RESEND_VERIFIED_DOMAINS:${resend.verified.domains:}}") String verifiedDomainsCsv) {
         if (verifiedDomainsCsv == null || verifiedDomainsCsv.trim().isEmpty()) {
             this.verifiedDomains = Collections.emptyList();
         } else {
@@ -53,6 +53,15 @@ public class EmailService {
 
             if (defaultSender == null || defaultSender.isBlank()) {
                 logger.error("RESEND_DEFAULT_SENDER is not configured (defaultSender is blank). Email will not be sent.");
+                return false;
+            }
+
+            if (!isFromVerifiedDomain(defaultSender)) {
+                logger.error(
+                    "RESEND_DEFAULT_SENDER domain is not verified (sender: '{}', verified domains: {}). Update RESEND_DEFAULT_SENDER to use one of the verified domains or verify the domain in Resend.",
+                    defaultSender,
+                    verifiedDomains
+                );
                 return false;
             }
 
@@ -92,20 +101,35 @@ public class EmailService {
     }
 
     private boolean isFromVerifiedDomain(String from) {
-        if (from == null || from.isEmpty()) return false;
+        if (from == null || from.isBlank()) return false;
+
+        String fromDomain = extractDomain(from);
+        if (fromDomain == null || fromDomain.isBlank()) return false;
 
         if (verifiedDomains.isEmpty()) {
-            String defaultDomain = (defaultSender != null && defaultSender.contains("@"))
-                ? defaultSender.split("@", 2)[1]
-                : null;
+            String defaultDomain = extractDomain(defaultSender);
             if (defaultDomain == null || defaultDomain.isEmpty()) return false;
-
-            String fromDomain = from.contains("@") ? from.split("@", 2)[1] : from;
             return defaultDomain.equalsIgnoreCase(fromDomain);
         }
-        
-        String domain = from.contains("@") ? from.split("@")[1] : from;
-        return verifiedDomains.stream().anyMatch(verified -> domain.equals(verified));
+
+        return verifiedDomains.stream().anyMatch(verified -> fromDomain.equalsIgnoreCase(verified));
+    }
+
+    private String extractDomain(String from) {
+        if (from == null) return null;
+        String value = from.trim();
+        if (value.isEmpty()) return null;
+
+        int lt = value.lastIndexOf('<');
+        int gt = value.lastIndexOf('>');
+        if (lt >= 0 && gt > lt) {
+            value = value.substring(lt + 1, gt).trim();
+        }
+
+        int at = value.lastIndexOf('@');
+        if (at < 0 || at == value.length() - 1) return null;
+
+        return value.substring(at + 1).trim();
     }
 
     public List<String> getVerifiedDomains() {
