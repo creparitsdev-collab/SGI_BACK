@@ -39,10 +39,14 @@ public class PasswordResetService {
     @Transactional
     public boolean initiatePasswordReset(String email) {
         try {
-            logger.info("Attempting password reset for email: {}", email);
+            String normalizedEmail = email == null ? null : email.trim().toLowerCase();
+            if (normalizedEmail == null || normalizedEmail.isBlank()) {
+                return false;
+            }
+            logger.info("Attempting password reset for email: {}", normalizedEmail);
             
             // First, check if the email exists in the database
-            Optional<User> userOptional = userRepository.findByEmail(email);
+            Optional<User> userOptional = userRepository.findByEmailNormalized(normalizedEmail);
             
             // Log additional details about the user lookup
             logger.info("User lookup result: {}", userOptional.isPresent() ? "User found" : "User not found");
@@ -54,7 +58,7 @@ public class PasswordResetService {
             
             // If user is not found, return false
             if (userOptional.isEmpty()) {
-                logger.warn("Password reset requested for non-existent email: {}", email);
+                logger.warn("Password reset requested for non-existent email: {}", normalizedEmail);
                 return false;
             }
 
@@ -73,19 +77,20 @@ public class PasswordResetService {
             passwordResetTokenRepository.save(resetToken);
 
             // Send reset email with token
+            String targetEmail = user.getEmail() != null ? user.getEmail() : normalizedEmail;
             boolean emailSent = emailService.sendEmail(
-                email, 
-                "Password Reset Token", 
+                targetEmail, 
+                "Restablecer contraseña - Creparis", 
                 buildResetEmailBody(token)
             );
 
             if (emailSent) {
-                logger.info("Password reset token sent to: {}", email);
+                logger.info("Password reset link sent to: {}", targetEmail);
                 return true;
             } else {
                 logger.error("Failed to send email via Resend");
                 // Log the reset token for development/testing
-                logger.warn("DEVELOPMENT MODE: Reset Token for {}: {}", email, token);
+                logger.warn("DEVELOPMENT MODE: Reset Token for {}: {}", targetEmail, token);
                 return true; // Return true to simulate successful token generation
             }
         } catch (Exception e) {
@@ -148,7 +153,7 @@ public class PasswordResetService {
                 // Send confirmation email
                 boolean emailSent = emailService.sendEmail(
                     user.getEmail(),
-                    "Password Successfully Reset",
+                    "Contraseña actualizada - Creparis",
                     buildPasswordResetConfirmationEmailBody(user.getName())
                 );
 
@@ -164,36 +169,42 @@ public class PasswordResetService {
     }
 
     private String buildResetEmailBody(String token) {
+        String base = frontendUrl == null ? "" : frontendUrl.trim();
+        String resetUrl = base.endsWith("/") ? (base + "ForgotPassword/" + token) : (base + "/ForgotPassword/" + token);
         return String.format("""
             <html>
             <head>
                 <style>
                     body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
                     .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; }
-                    .header { background-color: #007bff; color: white; padding: 30px; text-align: center; }
+                    .header { background: linear-gradient(135deg, #0ea5e9 0%, #22c55e 100%); color: white; padding: 30px; text-align: center; }
                     .content { padding: 30px; }
-                    .token-box { background-color: #f8f9fa; border: 2px solid #007bff; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center; }
-                    .token { font-family: 'Courier New', monospace; font-size: 20px; font-weight: bold; color: #007bff; letter-spacing: 2px; }
+                    .token-box { background-color: #f8f9fa; border: 2px solid #0ea5e9; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center; }
+                    .token { font-family: 'Courier New', monospace; font-size: 20px; font-weight: bold; color: #0ea5e9; letter-spacing: 2px; }
                     .warning { background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 5px; padding: 15px; margin: 20px 0; }
                     .footer { background-color: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 14px; }
-                    .button { display: inline-block; background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 10px 0; }
+                    .button { display: inline-block; background-color: #0ea5e9; color: white; padding: 12px 24px; text-decoration: none; border-radius: 10px; margin: 10px 0; font-weight: 700; }
                 </style>
             </head>
             <body>
                 <div class="container">
                     <div class="header">
                         <h1>🔐 Restablecimiento de Contraseña</h1>
-                        <p>LabMetricas - Sistema de Gestión</p>
+                        <p>Creparis</p>
                     </div>
                     <div class="content">
                         <h2>Hola,</h2>
-                        <p>Hemos recibido una solicitud para restablecer tu contraseña en LabMetricas.</p>
+                        <p>Hemos recibido una solicitud para restablecer tu contraseña en Creparis.</p>
                         
                         <div class="token-box">
                             <h3>Tu código de verificación:</h3>
                             <div class="token">%s</div>
                             <p><small>Este código expira en 1 hora</small></p>
                         </div>
+
+                        <p style="text-align:center;">
+                            <a class="button" href="%s">Cambiar contraseña</a>
+                        </p>
                         
                         <div class="warning">
                             <strong>⚠️ Importante:</strong>
@@ -207,13 +218,13 @@ public class PasswordResetService {
                         <p>Si tienes alguna pregunta, no dudes en contactar a nuestro equipo de soporte.</p>
                     </div>
                     <div class="footer">
-                        <p>© 2024 LabMetricas. Todos los derechos reservados.</p>
+                        <p>© 2024 Creparis. Todos los derechos reservados.</p>
                         <p>Este es un email automático, por favor no respondas a este mensaje.</p>
                     </div>
                 </div>
             </body>
             </html>
-            """, token);
+            """, token, resetUrl);
     }
 
     private String buildPasswordResetConfirmationEmailBody(String userName) {
@@ -223,9 +234,9 @@ public class PasswordResetService {
                 <style>
                     body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
                     .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; }
-                    .header { background-color: #28a745; color: white; padding: 30px; text-align: center; }
+                    .header { background: linear-gradient(135deg, #0ea5e9 0%, #22c55e 100%); color: white; padding: 30px; text-align: center; }
                     .content { padding: 30px; }
-                    .success-box { background-color: #d4edda; border: 2px solid #28a745; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center; }
+                    .success-box { background-color: #ecfeff; border: 2px solid #22c55e; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center; }
                     .footer { background-color: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 14px; }
                 </style>
             </head>
@@ -233,14 +244,14 @@ public class PasswordResetService {
                 <div class="container">
                     <div class="header">
                         <h1>✅ Contraseña Actualizada</h1>
-                        <p>LabMetricas - Sistema de Gestión</p>
+                        <p>Creparis</p>
                     </div>
                     <div class="content">
                         <h2>Hola %s,</h2>
                         
                         <div class="success-box">
                             <h3>¡Tu contraseña ha sido actualizada exitosamente!</h3>
-                            <p>Tu cuenta en LabMetricas ahora tiene una nueva contraseña.</p>
+                            <p>Tu cuenta en Creparis ahora tiene una nueva contraseña.</p>
                         </div>
                         
                         <p><strong>Información importante:</strong></p>
@@ -253,7 +264,7 @@ public class PasswordResetService {
                         <p>Si tienes alguna pregunta o necesitas ayuda, no dudes en contactarnos.</p>
                     </div>
                     <div class="footer">
-                        <p>© 2024 LabMetricas. Todos los derechos reservados.</p>
+                        <p>© 2024 Creparis. Todos los derechos reservados.</p>
                         <p>Este es un email automático, por favor no respondas a este mensaje.</p>
                     </div>
                 </div>
@@ -261,4 +272,4 @@ public class PasswordResetService {
             </html>
             """, userName);
     }
-} 
+}

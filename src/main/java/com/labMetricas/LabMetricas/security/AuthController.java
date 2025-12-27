@@ -108,17 +108,11 @@ public class AuthController {
     @PostMapping("/forgot-password")
     public ResponseEntity<ResponseObject> forgotPassword(@Valid @RequestBody PasswordResetRequest request) {
         try {
-            boolean result = passwordResetService.initiatePasswordReset(request.getEmail());
-            
-            if (result) {
-                return ResponseEntity.ok(
-                    new ResponseObject("Password reset link sent to your email", null, TypeResponse.SUCCESS)
-                );
-            } else {
-                return ResponseEntity
-                    .status(HttpStatus.NOT_FOUND)
-                    .body(new ResponseObject("No account found with this email", null, TypeResponse.ERROR));
-            }
+            String email = request.getEmail() == null ? null : request.getEmail().trim();
+            passwordResetService.initiatePasswordReset(email);
+            return ResponseEntity.ok(
+                new ResponseObject("Password reset link sent to your email", null, TypeResponse.SUCCESS)
+            );
         } catch (Exception e) {
             logger.error("Error during password reset initiation", e);
             return ResponseEntity

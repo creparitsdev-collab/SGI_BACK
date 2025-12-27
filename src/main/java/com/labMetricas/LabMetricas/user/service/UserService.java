@@ -125,7 +125,7 @@ public class UserService {
             "    </div>" +
             "    <div style='background:#ffffff; border-radius: 0 0 14px 14px; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08); padding: 22px 20px;'>" +
             "      <p style='margin: 0; color:#0f172a; font-size: 14px; line-height: 1.7;'>" +
-            "        Nos complace darte la bienvenida a <strong>LabMetricas</strong>, tu plataforma integral para la gestión de métricas y mantenimiento." +
+            "        Nos complace darte la bienvenida a <strong>Creparis</strong>, tu plataforma para la gestión de productos, inventario y trazabilidad." +
             "      </p>" +
             "      <div style='margin-top: 16px; padding: 14px 14px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0;'>" +
             "        <div style='font-size: 13px; color:#334155; font-weight: 700; margin-bottom: 10px;'>Tus credenciales</div>" +
@@ -139,10 +139,10 @@ public class UserService {
             "      <div style='margin-top: 16px; padding: 14px 14px; border-radius: 12px; background: #ecfeff; border: 1px solid #a5f3fc;'>" +
             "        <div style='font-size: 13px; color:#0f172a; font-weight: 700; margin-bottom: 8px;'>Con tu cuenta podrás:</div>" +
             "        <ul style='margin: 0; padding-left: 18px; color:#0f172a; font-size: 13px; line-height: 1.8;'>" +
-            "          <li>Gestionar equipos y mantenimientos</li>" +
-            "          <li>Monitorear métricas en tiempo real</li>" +
-            "          <li>Recibir notificaciones importantes</li>" +
-            "          <li>Acceder a reportes detallados</li>" +
+            "          <li>Gestionar catálogos y productos</li>" +
+            "          <li>Administrar inventario y movimientos</li>" +
+            "          <li>Consultar códigos QR con información detallada</li>" +
+            "          <li>Acceder a reportes y trazabilidad</li>" +
             "        </ul>" +
             "      </div>" +
             "      <div style='text-align:center; margin-top: 18px;'>" +
@@ -184,7 +184,9 @@ public class UserService {
             user.setStatus(userDto.getStatus() != null ? userDto.getStatus() : true);
             user.setRole(roleRepository.findById(userDto.getRoleId())
                 .orElseThrow(() -> new RuntimeException("Role not found")));
-            String rawPassword = generateTemporaryPassword();
+            String rawPassword = userDto.getPassword() != null && !userDto.getPassword().isBlank()
+                ? userDto.getPassword()
+                : generateTemporaryPassword();
             user.setPassword(passwordEncoder.encode(rawPassword));
             user.setCreatedAt(LocalDateTime.now());
             user.setUpdatedAt(LocalDateTime.now());
