@@ -109,10 +109,15 @@ public class AuthController {
     public ResponseEntity<ResponseObject> forgotPassword(@Valid @RequestBody PasswordResetRequest request) {
         try {
             String email = request.getEmail() == null ? null : request.getEmail().trim();
-            passwordResetService.initiatePasswordReset(email);
-            return ResponseEntity.ok(
-                new ResponseObject("Password reset link sent to your email", null, TypeResponse.SUCCESS)
-            );
+            boolean initiated = passwordResetService.initiatePasswordReset(email);
+            if (initiated) {
+                return ResponseEntity.ok(
+                    new ResponseObject("Password reset link sent to your email", null, TypeResponse.SUCCESS)
+                );
+            }
+            return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(new ResponseObject("No existe una cuenta con este email o no fue posible enviar el correo.", null, TypeResponse.ERROR));
         } catch (Exception e) {
             logger.error("Error during password reset initiation", e);
             return ResponseEntity

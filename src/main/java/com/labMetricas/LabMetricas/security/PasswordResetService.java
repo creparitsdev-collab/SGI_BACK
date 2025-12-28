@@ -3,7 +3,7 @@ package com.labMetricas.LabMetricas.security;
 import com.labMetricas.LabMetricas.passwordResetToken.model.PasswordResetToken;
 import com.labMetricas.LabMetricas.passwordResetToken.repository.PasswordResetTokenRepository;
 import com.labMetricas.LabMetricas.user.repository.UserRepository;
-import com.labMetricas.LabMetricas.config.EmailService;
+import com.labMetricas.LabMetricas.config.ProductionEmailService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,7 +31,7 @@ public class PasswordResetService {
     private PasswordEncoder passwordEncoder;
 
     @Autowired
-    private EmailService emailService;
+    private ProductionEmailService productionEmailService;
 
     @Value("${frontend.url}")
     private String frontendUrl;
@@ -43,11 +43,12 @@ public class PasswordResetService {
             if (normalizedEmail == null || normalizedEmail.isBlank()) {
                 return false;
             }
+
             logger.info("Attempting password reset for email: {}", normalizedEmail);
-            
+
             // First, check if the email exists in the database
             Optional<User> userOptional = userRepository.findByEmailNormalized(normalizedEmail);
-            
+
             // Log additional details about the user lookup
             logger.info("User lookup result: {}", userOptional.isPresent() ? "User found" : "User not found");
             if (userOptional.isPresent()) {
@@ -55,7 +56,7 @@ public class PasswordResetService {
                 logger.info("Found user details - Name: {}, Status: {}, Enabled: {}", 
                     user.getName(), user.getStatus(), user.isEnabled());
             }
-            
+
             // If user is not found, return false
             if (userOptional.isEmpty()) {
                 logger.warn("Password reset requested for non-existent email: {}", normalizedEmail);
@@ -63,7 +64,7 @@ public class PasswordResetService {
             }
 
             User user = userOptional.get();
-            
+
             // Delete any existing reset tokens for this user
             passwordResetTokenRepository.deleteByUser(user);
 
@@ -78,10 +79,10 @@ public class PasswordResetService {
 
             // Send reset email with token
             String targetEmail = user.getEmail() != null ? user.getEmail() : normalizedEmail;
-            boolean emailSent = emailService.sendEmail(
-                targetEmail, 
-                "Restablecer contraseña - Creparis", 
-                buildResetEmailBody(token)
+            boolean emailSent = productionEmailService.sendCustomEmail(
+                targetEmail,
+                "Restablecer contraseña - Creparis",
+                buildResetEmailBody(user.getName(), token)
             );
 
             if (emailSent) {
@@ -89,9 +90,7 @@ public class PasswordResetService {
                 return true;
             } else {
                 logger.error("Failed to send email via Resend");
-                // Log the reset token for development/testing
-                logger.warn("DEVELOPMENT MODE: Reset Token for {}: {}", targetEmail, token);
-                return true; // Return true to simulate successful token generation
+                return false;
             }
         } catch (Exception e) {
             logger.error("Unexpected error in password reset process", e);
@@ -151,7 +150,7 @@ public class PasswordResetService {
                 User user = resetToken.getUser();
                 
                 // Send confirmation email
-                boolean emailSent = emailService.sendEmail(
+                boolean emailSent = productionEmailService.sendCustomEmail(
                     user.getEmail(),
                     "Contraseña actualizada - Creparis",
                     buildPasswordResetConfirmationEmailBody(user.getName())
@@ -168,63 +167,48 @@ public class PasswordResetService {
         }
     }
 
-    private String buildResetEmailBody(String token) {
+    private String buildResetEmailBody(String userName, String token) {
         String base = frontendUrl == null ? "" : frontendUrl.trim();
         String resetUrl = base.endsWith("/") ? (base + "ForgotPassword/" + token) : (base + "/ForgotPassword/" + token);
-        return String.format("""
-            <html>
-            <head>
-                <style>
-                    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
-                    .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; }
-                    .header { background: linear-gradient(135deg, #0ea5e9 0%, #22c55e 100%); color: white; padding: 30px; text-align: center; }
-                    .content { padding: 30px; }
-                    .token-box { background-color: #f8f9fa; border: 2px solid #0ea5e9; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center; }
-                    .token { font-family: 'Courier New', monospace; font-size: 20px; font-weight: bold; color: #0ea5e9; letter-spacing: 2px; }
-                    .warning { background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 5px; padding: 15px; margin: 20px 0; }
-                    .footer { background-color: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 14px; }
-                    .button { display: inline-block; background-color: #0ea5e9; color: white; padding: 12px 24px; text-decoration: none; border-radius: 10px; margin: 10px 0; font-weight: 700; }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <div class="header">
-                        <h1>🔐 Restablecimiento de Contraseña</h1>
-                        <p>Creparis</p>
-                    </div>
-                    <div class="content">
-                        <h2>Hola,</h2>
-                        <p>Hemos recibido una solicitud para restablecer tu contraseña en Creparis.</p>
-                        
-                        <div class="token-box">
-                            <h3>Tu código de verificación:</h3>
-                            <div class="token">%s</div>
-                            <p><small>Este código expira en 1 hora</small></p>
-                        </div>
-
-                        <p style="text-align:center;">
-                            <a class="button" href="%s">Cambiar contraseña</a>
-                        </p>
-                        
-                        <div class="warning">
-                            <strong>⚠️ Importante:</strong>
-                            <ul>
-                                <li>No compartas este código con nadie</li>
-                                <li>Si no solicitaste este cambio, ignora este email</li>
-                                <li>El código solo es válido por 1 hora</li>
-                            </ul>
-                        </div>
-                        
-                        <p>Si tienes alguna pregunta, no dudes en contactar a nuestro equipo de soporte.</p>
-                    </div>
-                    <div class="footer">
-                        <p>© 2024 Creparis. Todos los derechos reservados.</p>
-                        <p>Este es un email automático, por favor no respondas a este mensaje.</p>
-                    </div>
-                </div>
-            </body>
-            </html>
-            """, token, resetUrl);
+        String safeName = (userName == null || userName.isBlank()) ? "" : userName.trim();
+        return String.format(
+            "<html>" +
+            "<head>" +
+            "  <meta charset='UTF-8'/>" +
+            "  <meta name='viewport' content='width=device-width, initial-scale=1.0'/>" +
+            "</head>" +
+            "<body style='margin:0; padding:0; background:#f4f6fb; font-family: Arial, sans-serif;'>" +
+            "  <div style='max-width: 640px; margin: 0 auto; padding: 28px 16px;'>" +
+            "    <div style='background: linear-gradient(135deg, #0ea5e9 0%%, #22c55e 100%%); border-radius: 14px 14px 0 0; padding: 22px 20px; color: #ffffff;'>" +
+            "      <div style='font-size: 14px; opacity: 0.95; letter-spacing: 0.6px;'>Creparis</div>" +
+            "      <div style='font-size: 22px; font-weight: 700; margin-top: 6px;'>Restablecimiento de contraseña</div>" +
+            "      <div style='margin-top: 8px; font-size: 14px; opacity: 0.95;'>Se solicitó un cambio de contraseña para tu cuenta.</div>" +
+            "    </div>" +
+            "    <div style='background:#ffffff; border-radius: 0 0 14px 14px; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08); padding: 22px 20px;'>" +
+            "      <p style='margin: 0; color:#0f172a; font-size: 14px; line-height: 1.7;'>" +
+            "        Hola%s, te compartimos un enlace seguro para actualizar tu contraseña. Este enlace expira en <strong>1 hora</strong>." +
+            "      </p>" +
+            "      <div style='margin-top: 16px; padding: 14px 14px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0;'>" +
+            "        <div style='font-size: 13px; color:#334155; font-weight: 700; margin-bottom: 10px;'>Token</div>" +
+            "        <div style='font-size: 13px; color:#0f172a; line-height: 1.8;'>" +
+            "          <span style='display:inline-block; background:#0f172a; color:#ffffff; padding: 8px 10px; border-radius: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace; letter-spacing: 0.4px; word-break: break-all;'>%s</span>" +
+            "        </div>" +
+            "        <div style='margin-top: 10px; font-size: 12px; color:#64748b; line-height: 1.6;'>No compartas este token con nadie.</div>" +
+            "      </div>" +
+            "      <div style='text-align:center; margin-top: 18px;'>" +
+            "        <a href='%s' style='display:inline-block; background:#0ea5e9; color:#ffffff; padding: 12px 18px; text-decoration:none; border-radius: 12px; font-weight: 700; font-size: 14px;'>Cambiar contraseña</a>" +
+            "      </div>" +
+            "      <p style='margin: 18px 0 0; color:#64748b; font-size: 12px; line-height: 1.6; text-align:center;'>" +
+            "        Si no solicitaste este cambio, puedes ignorar este correo." +
+            "      </p>" +
+            "    </div>" +
+            "  </div>" +
+            "</body>" +
+            "</html>",
+            safeName.isEmpty() ? "" : (", <strong>" + safeName + "</strong>"),
+            token,
+            resetUrl
+        );
     }
 
     private String buildPasswordResetConfirmationEmailBody(String userName) {
