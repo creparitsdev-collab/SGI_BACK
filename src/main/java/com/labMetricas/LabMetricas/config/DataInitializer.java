@@ -82,14 +82,8 @@ public class DataInitializer implements CommandLineRunner {
             User creparisUser = userRepository.findByEmail("creparitsdev@gmail.com")
                 .orElseGet(() -> userRepository.findAll().stream().findFirst().orElse(null));
 
-            if (creparisUser != null) {
-                if (shouldPurgeOnStartup()) {
-                    purgeTestData(creparisUser);
-                } else {
-                    logger.info("Purge disabled. Set SGI_PURGE_ON_STARTUP=true to enable.");
-                }
-            } else {
-                logger.warn("No user found/created to keep. Skipping purge.");
+            if (creparisUser == null) {
+                logger.warn("No user found/created to keep.");
             }
 
             // Initialize warehouse types
