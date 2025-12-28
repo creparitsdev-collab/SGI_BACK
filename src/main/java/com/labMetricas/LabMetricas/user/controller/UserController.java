@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/users")
@@ -167,6 +168,15 @@ public class UserController {
         logger.info("User {} attempting to delete user with email {}", auth.getName(), email);
         
         return userService.deleteUserByEmail(email);
+    }
+
+    @PatchMapping("/toggle-status/{id}")
+    public ResponseEntity<ResponseObject> toggleUserStatus(@PathVariable UUID id) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+
+        logger.info("User {} attempting to toggle status for user id {}", auth.getName(), id);
+
+        return userService.toggleUserStatus(id);
     }
 
     @PostMapping("/change-password")
