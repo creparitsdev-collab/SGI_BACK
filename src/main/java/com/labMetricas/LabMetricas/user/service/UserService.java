@@ -425,27 +425,7 @@ public class UserService {
 
     // Email notification methods
     private void sendUserUpdateNotification(User user, String oldEmail) {
-        try {
-            String action = "Perfil de Usuario Actualizado";
-            String details = String.format(
-                "Tu perfil de usuario ha sido actualizado. " +
-                "Nombre: %s, Posición: %s, Teléfono: %s",
-                user.getName(),
-                user.getPosition(),
-                user.getPhone()
-            );
-            
-            productionEmailService.sendActionConfirmation(
-                user.getEmail(),
-                user.getName(),
-                action,
-                details
-            );
-            
-            logger.info("User update email sent to: {}", user.getEmail());
-        } catch (Exception e) {
-            logger.error("Failed to send user update email to: {}", user.getEmail(), e);
-        }
+        return;
     }
 
     private void sendPasswordChangeConfirmation(User user) {
