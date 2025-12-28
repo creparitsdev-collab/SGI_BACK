@@ -105,11 +105,38 @@ public class DataInitializer implements CommandLineRunner {
     private void createDefaultUsers() {
         // Administrador del Sistema
         createUserIfNotExists(
-            "Creparis",
-            "creparitsdev@gmail.com",
-            "Admin2024#Secure",
+            "Antonio García González", 
+            "antoniogarciagonzalez212@gmail.com", 
+            "Admin2024#Secure", 
             "ADMIN",
             "Administrador del Sistema"
+        );
+
+        // Administrador del Sistema - Amador Casillas
+        createUserIfNotExists(
+            "Amador Casillas", 
+            "amadorcasillasdr@gmail.com", 
+            "Admin2024#Secure", 
+            "ADMIN",
+            "Administrador del Sistema"
+        );
+
+        // Administrador del Sistema - Creparits Dev
+        createUserIfNotExists(
+            "Creparits Dev", 
+            "creparitsdev@gmail.com", 
+            "Admin2024#Secure", 
+            "ADMIN",
+            "Administrador del Sistema"
+        );
+
+        // Supervisor
+        createUserIfNotExists(
+            "Supervisor UTEZ", 
+            "20233tn106@utez.edu.mx", 
+            "Admin2024#Secure", 
+            "SUPERVISOR",
+            "Supervisor de Laboratorio"
         );
     }
 
@@ -219,7 +246,7 @@ public class DataInitializer implements CommandLineRunner {
         // Check if table is empty
         if (productStatusRepository.count() == 0) {
             // Get the first admin user to set as created_by_user_id
-            User adminUser = userRepository.findByEmail("creparitsdev@gmail.com")
+            User adminUser = userRepository.findByEmail("antoniogarciagonzalez212@gmail.com")
                 .orElseGet(() -> {
                     // If admin doesn't exist, get any user or create a default
                     return userRepository.findAll().stream()
@@ -260,7 +287,7 @@ public class DataInitializer implements CommandLineRunner {
     private void initializeStockCatalogues() {
         // Check if table is empty
         if (stockCatalogueRepository.count() == 0) {
-            User adminUser = userRepository.findByEmail("creparitsdev@gmail.com")
+            User adminUser = userRepository.findByEmail("antoniogarciagonzalez212@gmail.com")
                 .orElseGet(() -> userRepository.findAll().stream().findFirst().orElse(null));
 
             if (adminUser == null) {
@@ -268,9 +295,18 @@ public class DataInitializer implements CommandLineRunner {
                 return;
             }
 
-            // Create sample stock catalogue (solo contenedor/diccionario)
-            createStockCatalogueIfNotExists("Catálogo TEST", "SKU-TEST-001",
-                "Catálogo de prueba", adminUser);
+            // Create sample stock catalogues (solo contenedor/diccionario)
+            createStockCatalogueIfNotExists("Azúcar Morena", "SKU-AZU-001", 
+                "Azúcar morena", adminUser);
+
+            createStockCatalogueIfNotExists("Harina de Trigo", "SKU-HAR-002", 
+                "Harina de trigo", adminUser);
+
+            createStockCatalogueIfNotExists("Aceite Vegetal", "SKU-ACE-003", 
+                "Aceite vegetal", adminUser);
+
+            createStockCatalogueIfNotExists("Sal de Mesa", "SKU-SAL-004", 
+                "Sal de mesa", adminUser);
 
             logger.info("Stock catalogues initialized successfully");
         } else {
@@ -278,7 +314,7 @@ public class DataInitializer implements CommandLineRunner {
         }
     }
 
-    private void createStockCatalogueIfNotExists(String name, String sku, String description,
+    private void createStockCatalogueIfNotExists(String name, String sku, String description, 
             User createdByUser) {
         if (!stockCatalogueRepository.existsBySku(sku)) {
             StockCatalogue stockCatalogue = new StockCatalogue();
@@ -297,7 +333,7 @@ public class DataInitializer implements CommandLineRunner {
     private void initializeProducts() {
         // Check if table is empty
         if (productRepository.count() == 0) {
-            User adminUser = userRepository.findByEmail("creparitsdev@gmail.com")
+            User adminUser = userRepository.findByEmail("antoniogarciagonzalez212@gmail.com")
                 .orElseGet(() -> userRepository.findAll().stream().findFirst().orElse(null));
 
             if (adminUser == null) {
@@ -306,7 +342,7 @@ public class DataInitializer implements CommandLineRunner {
             }
 
             // Get stock catalogues and statuses
-            StockCatalogue azucar = stockCatalogueRepository.findBySku("SKU-TEST-001").orElse(null);
+            StockCatalogue azucar = stockCatalogueRepository.findBySku("SKU-AZU-001").orElse(null);
 
             ProductStatus sellado = productStatusRepository.findByName("Sellado").orElse(null);
 
@@ -321,12 +357,20 @@ public class DataInitializer implements CommandLineRunner {
                 return;
             }
 
-            // Create sample product
-            createProductWithQrAndMovement("LOTE-TEST-001", azucar, sellado,
-                LocalDate.now().minusDays(5), LocalDate.now().plusYears(1),
+            // Create sample products - Variedad de productos de prueba
+            // Producto 1: Azúcar Sellado
+            createProductWithQrAndMovement("LOTE-AZU-2024-001", azucar, sellado, 
+                LocalDate.now().minusDays(5), LocalDate.now().plusYears(1), 
                 50, 10, adminUser,
-                "PROV-TEST-001", "FABRICANTE TEST", "DISTRIBUIDOR TEST",
-                mps, kgUnit, "AN-TEST-001", "COD-TEST-001", LocalDate.now().plusMonths(6), "SKU-TEST-001-LOTE-TEST-001");
+                "PROV-AZU-2024-001", "Azucarera del Sur S.A. de C.V.", "Distribuidora Central México",
+                mps, kgUnit, "AN-001", "COD-AZU-001", LocalDate.now().plusMonths(6), "SKU-AZU-001-LOTE-AZU-2024-001");
+
+            // Producto 2: Azúcar Sellado (diferente lote)
+            createProductWithQrAndMovement("LOTE-AZU-2024-002", azucar, sellado, 
+                LocalDate.now().minusDays(3), LocalDate.now().plusYears(1), 
+                50, 15, adminUser,
+                "PROV-AZU-2024-002", "Azucarera del Sur S.A. de C.V.", "Distribuidora Central México",
+                mps, kgUnit, "AN-002", "COD-AZU-002", LocalDate.now().plusMonths(6), "SKU-AZU-001-LOTE-AZU-2024-002");
 
             logger.info("Products initialized successfully");
         } else {
