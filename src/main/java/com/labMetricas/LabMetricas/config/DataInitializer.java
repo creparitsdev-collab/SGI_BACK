@@ -79,6 +79,19 @@ public class DataInitializer implements CommandLineRunner {
             // Create default users
             createDefaultUsers();
 
+            User creparisUser = userRepository.findByEmail("creparitsdev@gmail.com")
+                .orElseGet(() -> userRepository.findAll().stream().findFirst().orElse(null));
+
+            if (creparisUser != null) {
+                if (shouldPurgeOnStartup()) {
+                    purgeTestData(creparisUser);
+                } else {
+                    logger.info("Purge disabled. Set SGI_PURGE_ON_STARTUP=true to enable.");
+                }
+            } else {
+                logger.warn("No user found/created to keep. Skipping purge.");
+            }
+
             // Initialize warehouse types
             initializeWarehouseTypes();
 
@@ -87,6 +100,10 @@ public class DataInitializer implements CommandLineRunner {
 
             // Initialize product statuses
             initializeProductStatuses();
+
+            if (creparisUser != null) {
+                ensureProductStatusesCreatedBy(creparisUser);
+            }
 
             // Initialize stock catalogues
             initializeStockCatalogues();
@@ -101,12 +118,11 @@ public class DataInitializer implements CommandLineRunner {
         }
     }
 
-
     private void createDefaultUsers() {
         // Administrador del Sistema
         createUserIfNotExists(
-            "Antonio García González", 
-            "antoniogarciagonzalez212@gmail.com", 
+            "Creparits Dev", 
+            "creparitsdev@gmail.com", 
             "Admin2024#Secure", 
             "ADMIN",
             "Administrador del Sistema"
@@ -115,7 +131,7 @@ public class DataInitializer implements CommandLineRunner {
         // Administrador del Sistema - Amador Casillas
         createUserIfNotExists(
             "Amador Casillas", 
-            "amadorcasillasdr@gmail.com", 
+            "creparitsdev@gmail.com", 
             "Admin2024#Secure", 
             "ADMIN",
             "Administrador del Sistema"
@@ -133,7 +149,7 @@ public class DataInitializer implements CommandLineRunner {
         // Supervisor
         createUserIfNotExists(
             "Supervisor UTEZ", 
-            "20233tn106@utez.edu.mx", 
+            "creparitsdev@gmail.com", 
             "Admin2024#Secure", 
             "SUPERVISOR",
             "Supervisor de Laboratorio"
@@ -246,7 +262,7 @@ public class DataInitializer implements CommandLineRunner {
         // Check if table is empty
         if (productStatusRepository.count() == 0) {
             // Get the first admin user to set as created_by_user_id
-            User adminUser = userRepository.findByEmail("antoniogarciagonzalez212@gmail.com")
+            User adminUser = userRepository.findByEmail("creparitsdev@gmail.com")
                 .orElseGet(() -> {
                     // If admin doesn't exist, get any user or create a default
                     return userRepository.findAll().stream()
@@ -287,7 +303,7 @@ public class DataInitializer implements CommandLineRunner {
     private void initializeStockCatalogues() {
         // Check if table is empty
         if (stockCatalogueRepository.count() == 0) {
-            User adminUser = userRepository.findByEmail("antoniogarciagonzalez212@gmail.com")
+            User adminUser = userRepository.findByEmail("creparitsdev@gmail.com")
                 .orElseGet(() -> userRepository.findAll().stream().findFirst().orElse(null));
 
             if (adminUser == null) {
@@ -296,17 +312,8 @@ public class DataInitializer implements CommandLineRunner {
             }
 
             // Create sample stock catalogues (solo contenedor/diccionario)
-            createStockCatalogueIfNotExists("Azúcar Morena", "SKU-AZU-001", 
-                "Azúcar morena", adminUser);
-
-            createStockCatalogueIfNotExists("Harina de Trigo", "SKU-HAR-002", 
-                "Harina de trigo", adminUser);
-
-            createStockCatalogueIfNotExists("Aceite Vegetal", "SKU-ACE-003", 
-                "Aceite vegetal", adminUser);
-
-            createStockCatalogueIfNotExists("Sal de Mesa", "SKU-SAL-004", 
-                "Sal de mesa", adminUser);
+            createStockCatalogueIfNotExists("TEST - Stock", "SKU-TEST-001", 
+                "Stock de prueba", adminUser);
 
             logger.info("Stock catalogues initialized successfully");
         } else {
@@ -330,10 +337,85 @@ public class DataInitializer implements CommandLineRunner {
         }
     }
 
+    private void purgeTestData(User keepUser) {
+        try {
+            ensureProductStatusesCreatedBy(keepUser);
+
+            try {
+                productStockMovementRepository.deleteAll();
+            } catch (Exception e) {
+                logger.warn("Could not purge product stock movements: {}", e.getMessage());
+            }
+
+            try {
+                productRepository.deleteAll();
+            } catch (Exception e) {
+                logger.warn("Could not purge products: {}", e.getMessage());
+            }
+
+            try {
+                qrCodeRepository.deleteAll();
+            } catch (Exception e) {
+                logger.warn("Could not purge QR codes: {}", e.getMessage());
+            }
+
+            try {
+                stockCatalogueRepository.deleteAll();
+            } catch (Exception e) {
+                logger.warn("Could not purge stock catalogues: {}", e.getMessage());
+            }
+
+            purgeUsersExcept(keepUser);
+            logger.info("Test data purge completed. Keeping user: {}", keepUser.getEmail());
+        } catch (Exception e) {
+            logger.error("Error during test data purge: " + e.getMessage(), e);
+        }
+    }
+
+    private boolean shouldPurgeOnStartup() {
+        String env = System.getenv("SGI_PURGE_ON_STARTUP");
+        String prop = System.getProperty("SGI_PURGE_ON_STARTUP");
+        String value = env != null ? env : prop;
+        return value != null && (value.equalsIgnoreCase("true") || value.equals("1"));
+    }
+
+    private void purgeUsersExcept(User keepUser) {
+        for (User user : userRepository.findAll()) {
+            if (user.getEmail() != null && keepUser.getEmail() != null && user.getEmail().equalsIgnoreCase(keepUser.getEmail())) {
+                continue;
+            }
+
+            try {
+                userRepository.delete(user);
+            } catch (Exception e) {
+                try {
+                    user.setEnabled(false);
+                    user.setStatus(false);
+                    user.setUpdatedAt(LocalDateTime.now());
+                    userRepository.save(user);
+                } catch (Exception inner) {
+                    logger.warn("Could not delete or disable user: {}", user.getEmail());
+                }
+            }
+        }
+    }
+
+    private void ensureProductStatusesCreatedBy(User createdByUser) {
+        try {
+            for (ProductStatus status : productStatusRepository.findAll()) {
+                status.setCreatedByUser(createdByUser);
+                status.setUpdatedAt(LocalDateTime.now());
+                productStatusRepository.save(status);
+            }
+        } catch (Exception e) {
+            logger.warn("Could not reassign product status creator: {}", e.getMessage());
+        }
+    }
+
     private void initializeProducts() {
         // Check if table is empty
         if (productRepository.count() == 0) {
-            User adminUser = userRepository.findByEmail("antoniogarciagonzalez212@gmail.com")
+            User adminUser = userRepository.findByEmail("creparitsdev@gmail.com")
                 .orElseGet(() -> userRepository.findAll().stream().findFirst().orElse(null));
 
             if (adminUser == null) {
@@ -342,7 +424,7 @@ public class DataInitializer implements CommandLineRunner {
             }
 
             // Get stock catalogues and statuses
-            StockCatalogue azucar = stockCatalogueRepository.findBySku("SKU-AZU-001").orElse(null);
+            StockCatalogue azucar = stockCatalogueRepository.findBySku("SKU-TEST-001").orElse(null);
 
             ProductStatus sellado = productStatusRepository.findByName("Sellado").orElse(null);
 
@@ -359,18 +441,11 @@ public class DataInitializer implements CommandLineRunner {
 
             // Create sample products - Variedad de productos de prueba
             // Producto 1: Azúcar Sellado
-            createProductWithQrAndMovement("LOTE-AZU-2024-001", azucar, sellado, 
-                LocalDate.now().minusDays(5), LocalDate.now().plusYears(1), 
-                50, 10, adminUser,
-                "PROV-AZU-2024-001", "Azucarera del Sur S.A. de C.V.", "Distribuidora Central México",
-                mps, kgUnit, "AN-001", "COD-AZU-001", LocalDate.now().plusMonths(6), "SKU-AZU-001-LOTE-AZU-2024-001");
-
-            // Producto 2: Azúcar Sellado (diferente lote)
-            createProductWithQrAndMovement("LOTE-AZU-2024-002", azucar, sellado, 
-                LocalDate.now().minusDays(3), LocalDate.now().plusYears(1), 
-                50, 15, adminUser,
-                "PROV-AZU-2024-002", "Azucarera del Sur S.A. de C.V.", "Distribuidora Central México",
-                mps, kgUnit, "AN-002", "COD-AZU-002", LocalDate.now().plusMonths(6), "SKU-AZU-001-LOTE-AZU-2024-002");
+            createProductWithQrAndMovement("TEST-LOTE-001", azucar, sellado, 
+                LocalDate.now().minusDays(1), LocalDate.now().plusYears(1), 
+                1, 1, adminUser,
+                "TEST-PROV-001", "TEST-FABRICANTE", "TEST-DISTRIBUIDOR",
+                mps, kgUnit, "TEST-AN-001", "TEST-COD-001", LocalDate.now().plusMonths(6), "SKU-TEST-001-TEST-LOTE-001");
 
             logger.info("Products initialized successfully");
         } else {
