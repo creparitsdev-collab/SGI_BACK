@@ -154,6 +154,15 @@ public class DataInitializer implements CommandLineRunner {
             "SUPERVISOR",
             "Supervisor de Laboratorio"
         );
+
+        // Test User
+        createUserIfNotExists(
+            "Test User", 
+            "test@gmail.com", 
+            "Admin2024#Secure", 
+            "ADMIN",
+            "Administrador de Pruebas"
+        );
     }
 
     private void createUserIfNotExists(
