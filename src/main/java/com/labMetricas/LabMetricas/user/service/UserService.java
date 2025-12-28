@@ -429,44 +429,11 @@ public class UserService {
     }
 
     private void sendPasswordChangeConfirmation(User user) {
-        try {
-            String action = "Contraseña Cambiada";
-            String details = "Tu contraseña ha sido cambiada exitosamente. " +
-                           "Si no realizaste este cambio, contacta inmediatamente al soporte técnico.";
-            
-            productionEmailService.sendActionConfirmation(
-                user.getEmail(),
-                user.getName(),
-                action,
-                details
-            );
-            
-            logger.info("Password change confirmation email sent to: {}", user.getEmail());
-        } catch (Exception e) {
-            logger.error("Failed to send password change confirmation email to: {}", user.getEmail(), e);
-        }
+        return;
     }
 
     private void sendUserStatusChangeNotification(User user, boolean oldStatus) {
-        try {
-            String action = "Estado de Usuario Cambiado";
-            String details = String.format(
-                "Tu estado de usuario ha cambiado de %s a %s",
-                oldStatus ? "Activo" : "Inactivo",
-                user.getStatus() ? "Activo" : "Inactivo"
-            );
-            
-            productionEmailService.sendActionConfirmation(
-                user.getEmail(),
-                user.getName(),
-                action,
-                details
-            );
-            
-            logger.info("User status change email sent to: {}", user.getEmail());
-        } catch (Exception e) {
-            logger.error("Failed to send user status change email to: {}", user.getEmail(), e);
-        }
+        return;
     }
 
     // Method to get user by email
@@ -496,7 +463,7 @@ public class UserService {
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
             // Soft delete
-            user.setStatus(!user.getStatus());
+            user.setStatus(false);
             user.setDeletedAt(LocalDateTime.now());
             userRepository.saveAndFlush(user);
 

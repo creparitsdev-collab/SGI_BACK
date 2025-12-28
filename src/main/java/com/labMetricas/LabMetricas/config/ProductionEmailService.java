@@ -76,42 +76,49 @@ public class ProductionEmailService {
      * Enviar email de bienvenida a un nuevo usuario
      */
     public boolean sendWelcomeEmail(String to, String userName) {
-        String subject = "¡Bienvenido a LabMetricas!";
-        String htmlContent = buildWelcomeEmailBody(userName);
-        return sendEmail(to, subject, htmlContent);
+        logger.info("Welcome email suppressed (to: {})", to);
+        return true;
     }
 
     /**
      * Enviar email de notificación de mantenimiento
      */
     public boolean sendMaintenanceNotification(String to, String userName, String maintenanceType, String scheduledDate) {
-        String subject = "Notificación de Mantenimiento - LabMetricas";
-        String htmlContent = buildMaintenanceNotificationBody(userName, maintenanceType, scheduledDate);
-        return sendEmail(to, subject, htmlContent);
+        logger.info("Maintenance notification email suppressed (to: {})", to);
+        return true;
     }
 
     /**
      * Enviar email de recordatorio de contraseña
      */
     public boolean sendPasswordReminder(String to, String userName) {
-        String subject = "Recordatorio de Contraseña - LabMetricas";
-        String htmlContent = buildPasswordReminderBody(userName);
-        return sendEmail(to, subject, htmlContent);
+        logger.info("Password reminder email suppressed (to: {})", to);
+        return true;
     }
 
     /**
      * Enviar email de confirmación de acción
      */
     public boolean sendActionConfirmation(String to, String userName, String action, String details) {
-        String subject = "Confirmación de Acción - LabMetricas";
-        String htmlContent = buildActionConfirmationBody(userName, action, details);
-        return sendEmail(to, subject, htmlContent);
+        logger.info("Action confirmation email suppressed for action: {} (to: {})", action, to);
+        return true;
     }
 
     /**
      * Enviar email personalizado
      */
     public boolean sendCustomEmail(String to, String subject, String htmlContent) {
+        String normalized = subject == null ? "" : subject.trim().toLowerCase();
+        boolean allowed =
+            normalized.contains("tus credenciales de acceso") ||
+            normalized.contains("restablecer contraseña") ||
+            normalized.contains("contraseña actualizada");
+
+        if (!allowed) {
+            logger.info("Custom email suppressed (to: {}, subject: {})", to, subject);
+            return true;
+        }
+
         return sendEmail(to, subject, htmlContent);
     }
 
