@@ -7,9 +7,13 @@ import com.labMetricas.LabMetricas.enums.TypeResponse;
 import com.labMetricas.LabMetricas.movement.model.ProductStockMovement;
 import com.labMetricas.LabMetricas.movement.repository.ProductStockMovementRepository;
 import com.labMetricas.LabMetricas.product.model.Product;
+import com.labMetricas.LabMetricas.product.model.ProductDiscountLog;
+import com.labMetricas.LabMetricas.product.model.dto.CreateProductDiscountDto;
+import com.labMetricas.LabMetricas.product.model.dto.ProductDiscountLogDto;
 import com.labMetricas.LabMetricas.product.model.dto.CreateProductDto;
 import com.labMetricas.LabMetricas.product.model.dto.ProductResponseDto;
 import com.labMetricas.LabMetricas.product.model.dto.UpdateProductDto;
+import com.labMetricas.LabMetricas.product.repository.ProductDiscountLogRepository;
 import com.labMetricas.LabMetricas.product.repository.ProductRepository;
 import com.labMetricas.LabMetricas.qrcode.model.QrCode;
 import com.labMetricas.LabMetricas.qrcode.repository.QrCodeRepository;
@@ -48,6 +52,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -87,6 +92,9 @@ public class ProductService {
     @Autowired
     private UnitOfMeasurementRepository unitOfMeasurementRepository;
 
+    @Autowired
+    private ProductDiscountLogRepository productDiscountLogRepository;
+
     // Método helper para crear logs de auditoría mejorados
     private void createAuditLog(String action, User user, Product product) {
         try {
@@ -102,6 +110,177 @@ public class ProductService {
         } catch (Exception e) {
             logger.error("Error creating audit log: {}", action, e);
             // No lanzar excepción para no interrumpir el flujo principal
+        }
+    }
+
+    @Transactional
+    public ResponseEntity<ResponseObject> createProductDiscount(Integer productId, CreateProductDiscountDto dto) {
+        try {
+            if (dto == null || dto.getAmount() == null || dto.getAmount() <= 0) {
+                return ResponseEntity.badRequest().body(
+                        new ResponseObject("Validation error: Amount must be positive", null, TypeResponse.ERROR)
+                );
+            }
+
+            Product product = productRepository.findByIdAndDeletedAtIsNull(productId)
+                    .orElseThrow(() -> new RuntimeException("Product not found or deleted"));
+
+            Integer before = product.getCantidadTotal() != null ? product.getCantidadTotal() : 0;
+            Integer amount = dto.getAmount();
+            if (amount > before) {
+                return ResponseEntity.badRequest().body(
+                        new ResponseObject("Validation error: Discount amount cannot be greater than current quantity", null, TypeResponse.ERROR)
+                );
+            }
+
+            Integer after = before - amount;
+
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            User currentUser = userRepository.findByEmail(auth.getName()).orElse(null);
+
+            product.setCantidadTotal(after);
+            product.setUpdatedAt(LocalDateTime.now());
+            Product updatedProduct = productRepository.save(product);
+
+            ProductDiscountLog log = new ProductDiscountLog();
+            log.setProductId(updatedProduct.getId());
+            log.setProductNombre(updatedProduct.getNombre());
+            log.setProductLote(updatedProduct.getLote());
+            log.setAmount(amount);
+            log.setDescription(dto.getDescription() != null ? dto.getDescription().trim() : null);
+            log.setQuantityBefore(before);
+            log.setQuantityAfter(after);
+            log.setCreatedAt(LocalDateTime.now());
+
+            if (currentUser != null) {
+                log.setCreatedByUserId(currentUser.getId());
+                log.setCreatedByUserName(currentUser.getName());
+                log.setCreatedByUserEmail(currentUser.getEmail());
+            }
+
+            ProductDiscountLog savedLog = productDiscountLogRepository.save(log);
+
+            String auditMessage = String.format(
+                    "DESCUENTO DE PRODUCTO - Usuario: %s | Producto: %s (ID: %d) | Lote: %s | Cantidad: %d -> %d | Descuento: %d%s",
+                    currentUser != null ? (currentUser.getName() != null ? currentUser.getName() : currentUser.getEmail()) : "ANONYMOUS",
+                    updatedProduct.getNombre(),
+                    updatedProduct.getId(),
+                    updatedProduct.getLote(),
+                    before,
+                    after,
+                    amount,
+                    (dto.getDescription() != null && !dto.getDescription().trim().isEmpty()) ? (" | Descripción: " + dto.getDescription().trim()) : ""
+            );
+            createAuditLog(auditMessage, currentUser, updatedProduct);
+
+            ProductDiscountLogDto responseDto = new ProductDiscountLogDto(
+                    savedLog.getId(),
+                    savedLog.getProductId(),
+                    savedLog.getProductNombre(),
+                    savedLog.getProductLote(),
+                    savedLog.getAmount(),
+                    savedLog.getDescription(),
+                    savedLog.getQuantityBefore(),
+                    savedLog.getQuantityAfter(),
+                    savedLog.getCreatedByUserId(),
+                    savedLog.getCreatedByUserName(),
+                    savedLog.getCreatedByUserEmail(),
+                    savedLog.getCreatedAt()
+            );
+
+            Map<String, Object> responseData = new HashMap<>();
+            responseData.put("discount", responseDto);
+            responseData.put("cantidadTotal", updatedProduct.getCantidadTotal());
+
+            return ResponseEntity.ok(
+                    new ResponseObject("Discount created successfully", responseData, TypeResponse.SUCCESS)
+            );
+        } catch (RuntimeException e) {
+            logger.error("Validation error during discount creation: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(
+                    new ResponseObject("Validation error: " + e.getMessage(), null, TypeResponse.ERROR)
+            );
+        } catch (Exception e) {
+            logger.error("Error creating product discount", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    new ResponseObject("Error creating product discount: " + e.getMessage(), null, TypeResponse.ERROR)
+            );
+        }
+    }
+
+    public ResponseEntity<ResponseObject> getProductDiscounts(Integer productId) {
+        try {
+            if (!productRepository.existsById(productId)) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                        new ResponseObject("Product not found", null, TypeResponse.ERROR)
+                );
+            }
+
+            List<ProductDiscountLogDto> logs = productDiscountLogRepository
+                    .findByProductIdOrderByCreatedAtDesc(productId)
+                    .stream()
+                    .map(l -> new ProductDiscountLogDto(
+                            l.getId(),
+                            l.getProductId(),
+                            l.getProductNombre(),
+                            l.getProductLote(),
+                            l.getAmount(),
+                            l.getDescription(),
+                            l.getQuantityBefore(),
+                            l.getQuantityAfter(),
+                            l.getCreatedByUserId(),
+                            l.getCreatedByUserName(),
+                            l.getCreatedByUserEmail(),
+                            l.getCreatedAt()
+                    ))
+                    .toList();
+
+            return ResponseEntity.ok(
+                    new ResponseObject("Discounts retrieved successfully", logs, TypeResponse.SUCCESS)
+            );
+        } catch (Exception e) {
+            logger.error("Error retrieving product discounts", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    new ResponseObject("Error retrieving product discounts", null, TypeResponse.ERROR)
+            );
+        }
+    }
+
+    @Transactional
+    public ResponseEntity<ResponseObject> deleteProduct(Integer id) {
+        try {
+            Product existingProduct = productRepository.findByIdAndDeletedAtIsNull(id)
+                    .orElseThrow(() -> new RuntimeException("Product not found or already deleted"));
+
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            User currentUser = userRepository.findByEmail(auth.getName()).orElse(null);
+
+            existingProduct.setDeletedAt(LocalDateTime.now());
+            existingProduct.setUpdatedAt(LocalDateTime.now());
+            Product deletedProduct = productRepository.save(existingProduct);
+
+            String auditMessage = String.format(
+                    "ELIMINACIÓN DE PRODUCTO - Usuario: %s | Producto: %s (ID: %d) | Lote: %s",
+                    currentUser != null ? (currentUser.getName() != null ? currentUser.getName() : currentUser.getEmail()) : "ANONYMOUS",
+                    deletedProduct.getNombre(),
+                    deletedProduct.getId(),
+                    deletedProduct.getLote()
+            );
+            createAuditLog(auditMessage, currentUser, deletedProduct);
+
+            return ResponseEntity.ok(
+                    new ResponseObject("Product deleted successfully", null, TypeResponse.SUCCESS)
+            );
+        } catch (RuntimeException e) {
+            logger.error("Validation error during product delete: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(
+                    new ResponseObject("Validation error: " + e.getMessage(), null, TypeResponse.ERROR)
+            );
+        } catch (Exception e) {
+            logger.error("Error deleting product", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    new ResponseObject("Error deleting product: " + e.getMessage(), null, TypeResponse.ERROR)
+            );
         }
     }
 

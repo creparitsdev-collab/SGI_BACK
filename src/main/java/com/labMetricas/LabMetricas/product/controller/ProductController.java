@@ -1,6 +1,7 @@
 package com.labMetricas.LabMetricas.product.controller;
 
 import com.labMetricas.LabMetricas.product.model.dto.CreateProductDto;
+import com.labMetricas.LabMetricas.product.model.dto.CreateProductDiscountDto;
 import com.labMetricas.LabMetricas.product.model.dto.UpdateProductDto;
 import com.labMetricas.LabMetricas.product.service.ProductService;
 import com.labMetricas.LabMetricas.util.ResponseObject;
@@ -51,6 +52,26 @@ public class ProductController {
         return productService.updateProduct(updateProductDto);
     }
 
+    @PostMapping("/{id}/discounts")
+    public ResponseEntity<ResponseObject> createProductDiscount(
+            @PathVariable Integer id,
+            @Valid @RequestBody CreateProductDiscountDto dto) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+
+        logger.info("User {} attempting to create discount for product id {}", auth.getName(), id);
+
+        return productService.createProductDiscount(id, dto);
+    }
+
+    @GetMapping("/{id}/discounts")
+    public ResponseEntity<ResponseObject> getProductDiscounts(@PathVariable Integer id) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+
+        logger.info("User {} attempting to retrieve discounts for product id {}", auth.getName(), id);
+
+        return productService.getProductDiscounts(id);
+    }
+
     @GetMapping("/qr/{hash}")
     public ResponseEntity<ResponseObject> getProductByQrHash(@PathVariable String hash) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -96,6 +117,15 @@ public class ProductController {
             auth.getName(), page, size, stockCatalogueId, statusId);
         
         return productService.getAllProducts(page, size, stockCatalogueId, statusId);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ResponseObject> deleteProduct(@PathVariable Integer id) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+
+        logger.info("User {} attempting to delete product with id {}", auth.getName(), id);
+
+        return productService.deleteProduct(id);
     }
 }
 
